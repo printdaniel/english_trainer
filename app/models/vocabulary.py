@@ -56,7 +56,11 @@ class Vocabulary:
         conn = get_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT * FROM vocabulary ORDER BY RANDOM() LIMIT 1")
+        cursor.execute("""SELECT * FROM vocabulary
+                        WHERE next_review IS NULL OR next_review <= date('now')
+                        ORDER BY RANDOM()
+                        LIMIT 1""")
+
         word = cursor.fetchone()
 
         conn.close()

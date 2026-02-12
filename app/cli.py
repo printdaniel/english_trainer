@@ -1,5 +1,6 @@
 import argparse
 from app.models.vocabulary import Vocabulary
+from app.services.srs import SRS
 
 
 def run():
@@ -63,11 +64,12 @@ def run():
 
         print(f"\nTranslate this word: {english}")
         user_answer = input("Your answer: ").strip()
-
         if translation and user_answer.lower() == translation.lower():
             print("Correct!")
+            SRS.update_word_review(word_id, True)
         else:
             print(f"Incorrect. Correct answer: {translation}")
+            SRS.update_word_review(word_id, False)
 
     else:
         parser.print_help()
