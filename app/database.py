@@ -1,5 +1,6 @@
 from pathlib import Path
 import sqlite3
+import sys
 
 
 # =============================
@@ -17,10 +18,17 @@ DB_PATH = DATA_DIR / "english_trainer.db"
 
 def get_connection():
     """Return a configured SQLite connection."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # Allows dict-like row access
-    conn.execute("PRAGMA foreign_keys = ON;")
-    return conn
+    try:
+        # Ensure data directory exists before connecting
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+        conn = sqlite3.connect(str(DB_PATH), timeout=10.0)
+        conn.row_factory = sqlite3.Row  # Allows dict-like row access
+        conn.execute("PRAGMA foreign_keys = ON;")
+        return conn
+    except Exception as e:
+        print(f"Error connecting to database: {e}", file=sys.stderr)
+        raise
 
 
 # =============================
@@ -31,10 +39,11 @@ def init_db():
     """
     Initialize database and ensure all tables and columns exist.
     """
+    try:
+        # Ensure directory exists
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    DATA_DIR.mkdir(exist_ok=True)
-
-    with get_connection() as conn:
+        conn = get_connection()
         cursor = conn.cursor()
 
         # -----------------------------
@@ -110,13 +119,22 @@ def init_db():
             );
         """)
 
+        # Commit table creation first
+        conn.commit()
+
         # -----------------------------
         # Migration Safety (Add missing columns if DB already exists)
         # -----------------------------
         ensure_column(cursor, "daily_progress", "accuracy", "REAL DEFAULT 0")
         ensure_column(cursor, "daily_progress", "session_duration", "INTEGER DEFAULT 0")
 
+        # Commit migrations
         conn.commit()
+        conn.close()
+
+    except Exception as e:
+        print(f"Error initializing database: {e}", file=sys.stderr)
+        raise
 
 
 # =============================
@@ -127,12 +145,15 @@ def ensure_column(cursor, table_name, column_name, column_definition):
     """
     Ensure a column exists in a table (basic migration support).
     """
-    cursor.execute(f"PRAGMA table_info({table_name});")
-    columns = [row[1] for row in cursor.fetchall()]
+    try:
+        cursor.execute(f"PRAGMA table_info({table_name});")
+        columns = [row[1] for row in cursor.fetchall()]
 
-    if column_name not in columns:
-        cursor.execute(
-            f"ALTER TABLE {table_name} "
-            f"ADD COLUMN {column_name} {column_definition};"
-        )
-
+        if column_name not in columns:
+            cursor.execute(
+                f"ALTER TABLE {table_name} "
+                f"ADD COLUMN {column_name} {column_definition};"
+            )
+    except Exception as e:
+        # Column might already exist, that's okay
+        pass
